@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suki Mini POS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #ffffff;
+      color: #1f2937;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+    }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .app-header { text-align: center; padding: 20px 0 16px; border-bottom: 2px solid #f3f4f6; }
+    .app-header h1 { font-size: 26px; }
+    .app-header p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+    section { padding: 18px 0; border-bottom: 2px solid #f3f4f6; }
+    section:last-child { border-bottom: none; }
+    section h2 { font-size: 18px; margin-bottom: 12px; }
+    .menu-list { display: flex; flex-direction: column; gap: 10px; }
+    .menu-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px;
+    }
+    .menu-info { display: flex; flex-direction: column; }
+    .menu-name { font-size: 16px; font-weight: 600; }
+    .menu-price { font-size: 14px; color: #6b7280; }
+    .add-btn {
+      background: #e8590c; color: #ffffff; border: none; border-radius: 999px;
+      padding: 12px 20px; font-size: 14px; font-weight: 600; min-width: 84px; min-height: 44px;
+      cursor: pointer;
+    }
+    .add-btn:active { background: #d9480f; }
+    .cart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cart-header h2 { margin: 0; }
+    .clear-btn {
+      background: #ffffff; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 8px;
+      padding: 10px 14px; font-size: 13px; min-height: 44px; cursor: pointer;
+    }
+    .cart-list { list-style: none; }
+    .cart-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 0; border-bottom: 1px dashed #e5e7eb; }
+    .cart-item-main { display: flex; align-items: center; gap: 10px; flex: 1; }
+    .cart-item-controls { display: flex; align-items: center; gap: 6px; }
+    .qty-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: 1px solid #e5e7eb;
+      background: #ffffff; font-size: 16px; line-height: 1; cursor: pointer; color: #1f2937;
+      min-width: 30px; min-height: 30px;
+    }
+    .qty-btn:active { background: #f3f4f6; }
+    .cart-item-qty { min-width: 24px; text-align: center; font-size: 14px; color: #6b7280; }
+    .cart-item-side { display: flex; align-items: center; gap: 8px; }
+    .cart-item-price { font-size: 15px; font-weight: 600; }
+    .delete-btn { background: none; border: none; color: #dc3545; font-size: 13px; min-height: 44px; cursor: pointer; padding: 0 4px; }
+    .cart-empty { text-align: center; color: #9ca3af; padding: 20px 0; font-size: 14px; }
+    .cart-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; }
+    .cart-total-label { font-size: 15px; color: #6b7280; }
+    .cart-total { font-size: 24px; font-weight: 700; color: #1f2937; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <h1>Suki Mini POS</h1>
+      <p>ร้านสุกี้ขนาดเล็ก</p>
+    </header>
+
+    <section class="menu">
+      <h2>เมนู</h2>
+      <div class="menu-list" id="menuList"></div>
+    </section>
+
+    <section class="cart">
+      <div class="cart-header">
+        <h2>ตะกร้า</h2>
+        <button class="clear-btn" id="clearCartBtn">ล้างตะกร้า</button>
+      </div>
+      <ul class="cart-list" id="cartList"></ul>
+      <div class="cart-footer">
+        <span class="cart-total-label">ยอดรวม</span>
+        <span class="cart-total" id="cartTotal">0 บาท</span>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const MENU = [
+      { id: "moo", name: "ชุดหมุ", price: 199 },
+      { id: "beef", name: "ชุดเนื้อ", price: 249 },
+      { id: "drink", name: "น้ำดื่ม", price: 20 }
+    ];
+
+    let cart = {};
+
+    const menuListEl = document.getElementById("menuList");
+    const cartListEl = document.getElementById("cartList");
+    const cartTotalEl = document.getElementById("cartTotal");
+    const clearCartBtn = document.getElementById("clearCartBtn");
+
+    function menuHTML() {
+      return MENU.map(function (m) {
+        return `
+          <div class="menu-item">
+            <div class="menu-info">
+              <span class="menu-name">${m.name}</span>
+              <span class="menu-price">${m.price} บาท</span>
+            </div>
+            <button class="add-btn" data-id="${m.id}">เพิ่ม</button>
+          </div>`;
+      }).join("");
+    }
+
+    function entries() {
+      return MENU.filter(function (m) { return (cart[m.id] || 0) > 0; })
+        .map(function (m) { return { menu: m, qty: cart[m.id] }; });
+    }
+
+    function cartTotal() {
+      return entries().reduce(function (sum, e) {
+        return sum + e.menu.price * e.qty;
+      }, 0);
+    }
+
+    function renderCart() {
+      const list = entries();
+      if (list.length === 0) {
+        cartListEl.innerHTML = '<li class="cart-empty">ยังไม่มีรายการในตะกร้า</li>';
+      } else {
+        cartListEl.innerHTML = list.map(function (e) {
+          return `<li class="cart-item">
+            <div class="cart-item-main">
+              <span class="cart-item-name">${e.menu.name}</span>
+              <span class="cart-item-controls">
+                <button class="qty-btn" data-id="${e.menu.id}" data-action="dec">−</button>
+                <span class="cart-item-qty">× ${e.qty}</span>
+                <button class="qty-btn" data-id="${e.menu.id}" data-action="inc">+</button>
+              </span>
+            </div>
+            <div class="cart-item-side">
+              <span class="cart-item-price">${e.menu.price * e.qty} บาท</span>
+              <button class="delete-btn" data-id="${e.menu.id}">ลบ</button>
+            </div>
+          </li>`;
+        }).join("");
+      }
+      cartTotalEl.textContent = cartTotal() + " บาท";
+    }
+
+    // Event Delegation: ใช้ผูกที่ container เพราะสร้าง DOM ผ่าน innerHTML
+    document.getElementById("menuList").addEventListener("click", function (e) {
+      const btn = e.target.closest(".add-btn");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      cart[id] = (cart[id] || 0) + 1;
+      renderCart();
+    });
+
+    document.getElementById("cartList").addEventListener("click", function (e) {
+      const decBtn = e.target.closest(".qty-btn[data-action='dec']");
+      const incBtn = e.target.closest(".qty-btn[data-action='inc']");
+      const delBtn = e.target.closest(".delete-btn");
+
+      if (incBtn) {
+        const id = incBtn.getAttribute("data-id");
+        cart[id] = (cart[id] || 0) + 1;
+        renderCart();
+        return;
+      }
+      if (decBtn) {
+        const id = decBtn.getAttribute("data-id");
+        const next = (cart[id] || 0) - 1;
+        if (next > 0) { cart[id] = next; } else { delete cart[id]; }
+        renderCart();
+        return;
+      }
+      if (delBtn) {
+        const id = delBtn.getAttribute("data-id");
+        delete cart[id];
+        renderCart();
+      }
+    });
+
+    clearCartBtn.addEventListener("click", function () {
+      cart = {};
+      renderCart();
+    });
+
+    menuListEl.innerHTML = menuHTML();
+    renderCart();
+  </script>
+</body>
+</html>
